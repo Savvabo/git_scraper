@@ -1,30 +1,53 @@
+from typing import Union
+
 import requests
-from parsel import Selector
 import mongodb_storage
+import const
 
-STARS_COUNT = '>100000'
-search_api_link = "https://api.github.com/search/repositories?q=stars:{}".format(STARS_COUNT)
-
-HEADERS = {
-    'User-Agent': 'Mozilla/5.0 (X11; Ubuntu; Linux x86_64; rv:73.0) Gecko/20100101 Firefox/73.0'
-}
-PROXIES = 'http://5.189.151.227:24001'
+search_api_link = 'https://api.github.com/search/repositories?q=stars:{}'.format(const.STARS_COUNT)
 
 
-def get_json(link):
-    response = requests.request("GET", link, headers=HEADERS)
+def get_json(link: str) -> dict:
+    proxy_dict = {'http': const.PROXIES, 'https': const.PROXIES}
+    response = requests.request('GET',
+                                link,
+                                headers=const.HEADERS,
+                                proxies=proxy_dict)
+    # response = requests.request('GET', link, headers=HEADERS)
     content = response.json()
     return content
 
-# def get_selector(link):
-#     response = requests.request("GET", link, headers=HEADERS, proxies=PROXIES)
-#     content = response.text()
-#     return content
+
+def get_language_percentage(repo_name: str) -> Union[str, dict]:
+    language_api_link = f'https://api.github.com/repos/{repo_name}/languages'
+    language_api_dict = get_json(language_api_link)
+    if len(language_api_dict) == 0:
+        return 'no programming language in the repo'
+    else:
+        keys = [*language_api_dict]
+        values = list(language_api_dict.values())
+        values_sum = sum(values)
+        values = list(map(lambda x: (x * 100) / values_sum, values))
+        language_dict = dict(zip(keys, values))
+        return language_dict
 
 
-def get_main_info(json_data: dict):
+def get_last_issue(repo_name: str) -> str:
+    issue_api_link = f'https://api.github.com/repos/{repo_name}/issues?per_page=1'
+    last_issue = get_json(issue_api_link)[0]['created_at']
+    return last_issue
+
+
+def get_last_pull(repo_name: str) -> str:
+    pull_api_link = f'https://api.github.com/repos/{repo_name}/pulls?per_page=1'
+    last_pull = get_json(pull_api_link)[0]['created_at']
+    return last_pull
+
+
+def get_repo_data(json_data: dict) -> list:
     repo_dicts = json_data['items']
-    repo_list = list()
+    # repos_dict = dict()
+    repos_list = list()
     for repo_dict in repo_dicts:
         certain_repo_data = dict()
         certain_repo_data['repo_name'] = repo_dict['name']
@@ -32,76 +55,22 @@ def get_main_info(json_data: dict):
         certain_repo_data['repo_link'] = repo_dict['html_url']
         certain_repo_data['repo_creation_date'] = repo_dict['created_at']
         certain_repo_data['repo_license'] = repo_dict['license']
-        certain_repo_data['repo_last_pull'] = repo_dict['updated_at']
-        repo_list.append(certain_repo_data)
-    print(repo_list)
-    return repo_list
-
-
-def get_repo_names():
-    repo_list = get_main_info(get_json(search_api_link))
-    all_repo_names = list()
-    for repo in repo_list:
-        all_repo_names.append(repo['full_repo_name'])
-    return all_repo_names
-
-def get_language_percentage():
-    repo_names = get_repo_names()
-    all_values = list()
-    for repo_name in repo_names:
-        language_api_link = 'https://api.github.com/repos/{}/languages'.format(repo_name)
-        value = get_json(language_api_link).values()
-        all_values.append(value)
-    print(all_values)
-    return 1
-
-get_language_percentage()
-
-def get_site_time(selector: Selector):
-    site_time = selector.xpath('//*[@class="rankmini-daily"]/div/text()').get().split()[0]
-    return site_time
-
-
-def get_keywords_traffic(selector: Selector):
-    keywords_traffic = dict()
-    rows = selector.xpath('//*[@id="card_mini_topkw"]//div[@class="Row"]')
-    for row in rows:
-        keyword = row.xpath('.//span/text()')[0].get()
-        percent = row.xpath('.//span/text()')[1].get()
-        percent = float(percent.strip('%'))
-        keywords_traffic[keyword] = percent
-    return keywords_traffic
-
-
-def get_traffic_sources(selector: Selector):
-    values_selector = selector.xpath('//*[@class="FolderTarget"]/div[1]/div/div[2]/span/text()').getall()
-    sources_keys = selector.xpath('//*[@class="FolderTarget"]//*[@class="Third"]/@title').getall()
-    sources_values = [float(value.split()[0].strip('%')) for value in values_selector]
-    sources_dict = dict(zip(sources_keys, sources_values))
-    return sources_dict
-
-
-def get_total_site_linking_in(selector: Selector):
-    total_site_linking_in = selector.xpath('//*[@class="enun"]/span[1]/text()').get()
-    return total_site_linking_in
-
-
-def get_alexa_data():
-    json_data = get_json(search_api_link)
-    # selector = get_selector()
-    alexa_data = dict()
-    alexa_data['site_rank'] = get_main_info(json_data)
-    # alexa_data['site_time'] = get_site_time(selector)
-    # alexa_data['keywords_traffic'] = get_keywords_traffic(selector)
-    # alexa_data['traffic_sources'] = get_traffic_sources(selector)
-    # alexa_data['total_site_linking_in'] = get_total_site_linking_in(selector)
-    return alexa_data
+        certain_repo_data['repo_last_pull'] = get_last_pull(certain_repo_data['full_repo_name'])
+        certain_repo_data['repo_last_issue'] = get_last_issue(certain_repo_data['full_repo_name'])
+        certain_repo_data['repo_language_percentage'] = get_language_percentage(certain_repo_data['full_repo_name'])
+        repos_list.append(certain_repo_data)
+        # repos_dict[certain_repo_data['repo_name']] = certain_repo_data
+    return repos_list
 
 
 def run():
-    alexa_data = get_alexa_data()
+    json_data = get_json(search_api_link)
+    repos_data = get_repo_data(json_data)
+    print(repos_data)
     mongo_instance = mongodb_storage.MongoDBStorage()
-    # mongo_instance.run(alexa_data, WEBSITE)
+    for repo in repos_data:
+        mongo_instance.run(repo)
+
 
 
 if __name__ == '__main__':

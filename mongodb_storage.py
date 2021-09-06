@@ -1,16 +1,26 @@
+from urllib.parse import quote_plus
+
 from pymongo import MongoClient
+import const
 
 
 def connect_to_mongo():
-    client = MongoClient('mongodb://localhost', connect=True)['Alexa_scraper']
+    password_db = quote_plus(const.PASSWORD)
+    # client = MongoClient('mongodb://localhost', connect=True)['Git_education']
+    client = MongoClient('mongodb://{login}:{password}@{ip}/{db_name}'.format(
+        login=const.LOGIN,
+        password=password_db,
+        ip=const.IP,
+        db_name='admin'))[const.DB_NAME]
+
     return client
 
 
 class MongoDBStorage:
     def __init__(self):
         self.client = connect_to_mongo()
-        self.alexa_collection = self.client['Alexa_scraper']
+        self.alexa_collection = self.client[const.DB_NAME]
 
-    def run(self, data: dict, website_name: str):
-        data['_id'] = website_name
-        self.alexa_collection.update_one({'_id': website_name}, {"$set": data}, upsert=True)
+    def run(self, data: dict):
+        # data['_id'] = website_name
+        self.alexa_collection.insert_one(data)
