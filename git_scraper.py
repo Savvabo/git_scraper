@@ -9,11 +9,15 @@ search_api_link = 'https://api.github.com/search/repositories?q=stars:{}'.format
 
 def get_json(link: str) -> dict:
     proxy_dict = {'http': const.PROXIES, 'https': const.PROXIES}
-    response = requests.request('GET',
-                                link,
-                                headers=const.HEADERS,
-                                proxies=proxy_dict)
-    # response = requests.request('GET', link, headers=HEADERS)
+    response = requests.request( # PROXY
+        'GET',
+        link,
+        headers=const.HEADERS,
+        proxies=proxy_dict)
+    # response = requests.request(
+    #     'GET',
+    #     link,
+    #     headers=const.HEADERS)
     content = response.json()
     return content
 
@@ -46,10 +50,10 @@ def get_last_pull(repo_name: str) -> str:
 
 def get_repo_data(json_data: dict) -> list:
     repo_dicts = json_data['items']
-    # repos_dict = dict()
     repos_list = list()
     for repo_dict in repo_dicts:
         certain_repo_data = dict()
+        certain_repo_data['_id'] = repo_dict['name']
         certain_repo_data['repo_name'] = repo_dict['name']
         certain_repo_data['full_repo_name'] = repo_dict['full_name']
         certain_repo_data['repo_link'] = repo_dict['html_url']
@@ -59,7 +63,6 @@ def get_repo_data(json_data: dict) -> list:
         certain_repo_data['repo_last_issue'] = get_last_issue(certain_repo_data['full_repo_name'])
         certain_repo_data['repo_language_percentage'] = get_language_percentage(certain_repo_data['full_repo_name'])
         repos_list.append(certain_repo_data)
-        # repos_dict[certain_repo_data['repo_name']] = certain_repo_data
     return repos_list
 
 
@@ -70,7 +73,6 @@ def run():
     mongo_instance = mongodb_storage.MongoDBStorage()
     for repo in repos_data:
         mongo_instance.run(repo)
-
 
 
 if __name__ == '__main__':
