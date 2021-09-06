@@ -22,4 +22,6 @@ class MongoDBStorage:
         self.alexa_collection = self.client[const.DB_NAME]
 
     def run(self, data: dict):
-        self.alexa_collection.insert_one(data)
+        self.alexa_collection.update_one({'_id': data['_id']}, {"$set": data}, upsert=True)
+
+        # self.alexa_collection.insert_one(data)
